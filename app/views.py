@@ -4,10 +4,15 @@ Jinja2 Documentation:    https://jinja.palletsprojects.com/
 Werkzeug Documentation:  https://werkzeug.palletsprojects.com/
 This file creates your application.
 """
-
-from app import app
-from flask import render_template, request, jsonify, send_file
 import os
+from . import db
+from app import app
+from flask import render_template, request, jsonify, send_file, send_from_directory
+from flask_wtf.csrf import generate_csrf
+from werkzeug.utils import secure_filename
+import os
+from app.models import Movie
+from app.forms import MovieForm
 
 
 ###
@@ -18,6 +23,80 @@ import os
 def index():
     return jsonify(message="This is the beginning of our API")
 
+
+
+@app.route('/api/v1/movies', methods = ['POST'])
+def movies():
+    response = ''
+    form = MovieForm()
+
+    if form.validate_on_submit():
+        
+        title = form.title.data
+        desc = form.desc.data
+        poster = form.poster.data
+        
+        poster_filename = secure_filename(poster.filename)
+        
+        response = jsonify({"message": "Movie Successfully added", 
+                    "title": title,
+                    "poster": poster_filename, 
+                    "desc": desc})
+            
+        new_movie = Movie(title, desc, poster_filename)
+        poster.save(os.path.join(app.config['UPLOAD_FOLDER'], poster_filename))
+    
+        # adding to database
+        db.session.add(new_movie)
+        db.session.commit()
+        
+        return response
+        
+    else:
+        errors = form_errors(form)
+        
+        if (errors):
+            
+            error_list = {"errors": []}
+            
+            error_list['errors'] = errors
+            
+            response = jsonify(error_list)
+            
+        return response
+   
+   
+@app.route('/api/v1/movies', methods = ['GET'])
+def get_movies():
+    movies = Movie.query.all()
+    
+    response = {'movies': []}
+    
+    
+    for movie in movies:
+        
+        movie_info = dict()
+        
+        movie_info['id'] = movie.id
+        movie_info['title'] = movie.title
+        movie_info['poster'] = f'/api/v1/posters/{movie.poster}'
+        movie_info['desc'] = movie.desc
+        
+        response['movies'] += [movie_info]
+        
+    return jsonify(response)
+
+            
+@app.route('/api/v1/posters/<filename>')
+def get_poster(filename):
+    return send_from_directory(os.path.join(os.getcwd(), app.config['UPLOAD_FOLDER']), filename)
+ 
+            
+@app.route('/api/v1/csrf-token', methods=['GET']) 
+def get_csrf():     
+    return jsonify({'csrf_token': generate_csrf()})            
+            
+        
 
 ###
 # The functions below should be applicable to all Flask apps.
@@ -57,7 +136,7 @@ def add_header(response):
     return response
 
 
-@app.errorhandler(404)
-def page_not_found(error):
-    """Custom 404 page."""
-    return render_template('404.html'), 404
+# @app.errorhandler(404)
+# def page_not_found(error):
+#     """Custom 404 page."""
+#     return render_template('404.html'), 404
