@@ -17,7 +17,5 @@ class Movie(db.Model):
         self.desc = desc
         self.poster = poster
         
-        today = date.today()
-        created_at = today.strftime("%d/%m/%Y")
-        
-        self.created_at = created_at
+        # Initialize created_at with the current date
+        self.created_at = date.today()
